@@ -4,7 +4,7 @@ Esqueleto FastAPI + Alembic para el Hito 1 (conexión a PostgreSQL y `/health`).
 
 ## Configuración rápida
 1) Copia `.env.example` a `.env` y ajusta si es necesario.
-2) Usa la URL de Render en formato async (`postgresql+asyncpg://...`). Si tu URL trae `?sslmode=require`, no pasa nada: el backend la limpia y fuerza SSL con contexto por defecto. El `DB_SCHEMA` por defecto es `Copilot`.
+2) Usa la URL de Render en formato async (`postgresql+asyncpg://...`). Si tu URL trae `?sslmode=require`, no pasa nada: el backend la limpia y fuerza SSL con contexto por defecto. El `DB_SCHEMA` por defecto es `copilot` (minúsculas para evitar problemas de schema).
 
 ## Ejecutar local
 ```bash

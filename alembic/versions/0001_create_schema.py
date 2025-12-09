@@ -1,4 +1,4 @@
-"""Create Copilot schema."""
+"""Create copilot schema."""
 
 from alembic import op
 
@@ -10,7 +10,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute('CREATE SCHEMA IF NOT EXISTS "Copilot"')
+    # Use lowercase schema to avoid case-sensitive lookup issues.
+    op.execute('CREATE SCHEMA IF NOT EXISTS "copilot"')
 
 
 def downgrade() -> None:
