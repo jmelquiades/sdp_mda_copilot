@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ssl
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -23,9 +24,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", settings.sanitized_database_url())
 
 target_metadata = Base.metadata
+
+ssl_context = ssl.create_default_context()
 
 
 def run_migrations_offline() -> None:
@@ -65,7 +68,10 @@ def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
         future=True,
-        connect_args={"server_settings": {"search_path": settings.db_schema}},
+        connect_args={
+            "server_settings": {"search_path": settings.db_schema},
+            "ssl": ssl_context,
+        },
     )
 
     async def run_async_migrations() -> None:
