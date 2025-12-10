@@ -1,0 +1,21 @@
+# Default and per-client allowed statuses for ticket listing.
+# The backend should read this file (or equivalent settings in DB) and
+# fall back to "default.allowed_statuses" when a client override is absent.
+
+default:
+  allowed_statuses:
+    - Asignado
+    - En Proceso
+    - Pendiente
+    - Resuelto
+    - Programado
+
+clients:
+  # Example override; replace key with your client_id / tenant name if needed.
+  # minera_chinalco:
+  #   allowed_statuses:
+  #     - Asignado
+  #     - En Proceso
+  #     - Pendiente
+  #     - Resuelto
+  #     - Programado
