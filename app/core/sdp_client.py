@@ -56,3 +56,43 @@ class SdpClient:
             )
 
         return data.get("tickets", []) or []
+
+    async def get_request_detail(self, ticket_id: str) -> Dict[str, Any]:
+        """Call /request/{ticket_id} in the gateway."""
+        headers = {
+            "X-Cliente": self.client_name,
+            "X-Api-Key": self.api_key,
+        }
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=30) as client:
+            resp = await client.get(f"/request/{ticket_id}", headers=headers)
+        try:
+            data = resp.json()
+        except Exception as exc:  # pragma: no cover - defensive
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="gateway_invalid_json") from exc
+
+        if resp.status_code != 200 or not isinstance(data, dict):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"gateway_request_failed (status={resp.status_code})",
+            )
+        return data
+
+    async def get_request_history(self, ticket_id: str) -> List[Dict[str, Any]]:
+        """Call /request/{ticket_id}/history in the gateway."""
+        headers = {
+            "X-Cliente": self.client_name,
+            "X-Api-Key": self.api_key,
+        }
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=30) as client:
+            resp = await client.get(f"/request/{ticket_id}/history", headers=headers)
+        try:
+            data = resp.json()
+        except Exception as exc:  # pragma: no cover - defensive
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="gateway_invalid_json") from exc
+
+        if resp.status_code != 200 or not isinstance(data, list):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"gateway_request_failed (status={resp.status_code})",
+            )
+        return data
