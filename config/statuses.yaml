@@ -7,7 +7,6 @@ default:
     - Asignado
     - En Proceso
     - Pendiente
-    - Resuelto
     - Programado
 
 clients:
