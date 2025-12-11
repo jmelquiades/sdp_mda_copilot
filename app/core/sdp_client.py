@@ -36,15 +36,23 @@ class SdpClient:
 
         async with httpx.AsyncClient(base_url=self.base_url, timeout=30) as client:
             resp = await client.get("/request/assigned", params=params, headers=headers)
+
+        # Parse and bubble up gateway errors with more context.
         try:
             data = resp.json()
         except Exception as exc:  # pragma: no cover - defensive
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="gateway_invalid_json") from exc
 
         if resp.status_code != 200 or not isinstance(data, dict):
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="gateway_request_failed")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"gateway_request_failed (status={resp.status_code})",
+            )
 
         if not data.get("ok"):
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=data.get("error") or "gateway_error")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=data.get("error") or "gateway_error",
+            )
 
         return data.get("tickets", []) or []
