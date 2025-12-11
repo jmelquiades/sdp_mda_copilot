@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.health import router as health_router
 from app.api.me import router as me_router
+from app.api.tickets import router as tickets_router
 
 app = FastAPI(title="Criteria ServiceDesk Copilot API")
 
@@ -15,3 +16,4 @@ async def root() -> dict[str, str]:
 
 app.include_router(health_router)
 app.include_router(me_router)
+app.include_router(tickets_router)

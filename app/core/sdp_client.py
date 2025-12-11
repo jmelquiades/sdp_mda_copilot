@@ -1,0 +1,50 @@
+"""HTTP client to talk to SDP_API_GW_OP."""
+
+from typing import Any, Dict, List, Optional
+
+import httpx
+from fastapi import HTTPException, status
+
+from app.core.config import settings
+
+
+class SdpClient:
+    """Lightweight async client for the SDP gateway."""
+
+    def __init__(self) -> None:
+        self.base_url = settings.gateway_base_url.rstrip("/")
+        self.client_name = settings.gateway_client
+        self.api_key = settings.gateway_api_key
+
+    async def get_assigned_requests(
+        self,
+        technician_id: str,
+        *,
+        statuses: Optional[List[str]] = None,
+        priorities: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Call /request/assigned in the gateway."""
+        headers = {
+            "X-Cliente": self.client_name,
+            "X-Api-Key": self.api_key,
+        }
+        params: Dict[str, str] = {"technician_id": str(technician_id)}
+        if statuses:
+            params["status"] = ",".join(statuses)
+        if priorities:
+            params["priority"] = ",".join(priorities)
+
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=30) as client:
+            resp = await client.get("/request/assigned", params=params, headers=headers)
+        try:
+            data = resp.json()
+        except Exception as exc:  # pragma: no cover - defensive
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="gateway_invalid_json") from exc
+
+        if resp.status_code != 200 or not isinstance(data, dict):
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="gateway_request_failed")
+
+        if not data.get("ok"):
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=data.get("error") or "gateway_error")
+
+        return data.get("tickets", []) or []

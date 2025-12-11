@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # Use lowercase to avoid case-sensitive schema issues.
     db_schema: str = Field(default="copilot", alias="DB_SCHEMA")
     sql_echo: bool = Field(default=False, alias="SQL_ECHO")
+    gateway_base_url: str = Field(default="https://criteria-sdp-api-gw-op.onrender.com", alias="SDP_GATEWAY_URL")
+    gateway_client: str = Field(default="Minera Chinalco", alias="SDP_GATEWAY_CLIENT")
+    gateway_api_key: str = Field(default="", alias="SDP_GATEWAY_API_KEY")
+    comm_sla_default_hours: float = Field(default=48.0, alias="COMM_SLA_DEFAULT_HOURS")
 
     def sanitized_database_url(self) -> str:
         """Return DB URL without unsupported sslmode query parameter."""
