@@ -68,9 +68,8 @@ async def list_tickets(
     response_items: List[TicketItem] = []
 
     for t in tickets:
-        # Prefer explicit last_contact; fallback to last_public_reply_time returned by gateway.
-        raw_contact = t.get("last_contact") or t.get("last_public_reply_time")
-        last_contact_dt = _parse_datetime(raw_contact)
+        # El gateway expone la última comunicación como last_user_contact_at (alias de last_public_reply_time).
+        last_contact_dt = _parse_datetime(t.get("last_user_contact_at") or t.get("last_public_reply_time"))
         hours_since = None
         if last_contact_dt:
             hours_since = (now - last_contact_dt).total_seconds() / 3600
