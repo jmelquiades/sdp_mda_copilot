@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     gateway_client: str = Field(default="Minera Chinalco", alias="SDP_GATEWAY_CLIENT")
     gateway_api_key: str = Field(default="", alias="SDP_GATEWAY_API_KEY")
     comm_sla_default_hours: float = Field(default=48.0, alias="COMM_SLA_DEFAULT_HOURS")
+    azure_openai_endpoint: str = Field(default="", alias="AZURE_OPENAI_ENDPOINT")
+    azure_openai_api_key: str = Field(default="", alias="AZURE_OPENAI_API_KEY")
+    azure_openai_api_version: str = Field(default="", alias="AZURE_OPENAI_API_VERSION")
+    azure_openai_deployment_gpt: str = Field(default="", alias="AZURE_OPENAI_DEPLOYMENT_GPT")
 
     def sanitized_database_url(self) -> str:
         """Return DB URL without unsupported sslmode query parameter."""

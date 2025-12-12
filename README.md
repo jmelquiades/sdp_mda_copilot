@@ -33,3 +33,17 @@ alembic upgrade head
 - `GET /api/tickets` → tickets asignados al técnico autenticado (bearer UPN). Campos: `service_code` (nombre), último contacto, flags de silencio/SLA.
 - `GET /api/tickets/{id}` → detalle del ticket (servicio, SLA, requester, created_time, último contacto, flags).
 - `GET /api/tickets/{id}/history` → eventos cronológicos (notas y conversaciones) con autor, visibilidad y timestamp ISO.
+- `POST /api/ia/generate_reply` → (Hito 6) genera un mensaje sugerido con IA. Requiere tablas pobladas: `org_profile`, `persona_config`, `services_catalog`, `settings` y mapeo en `technician_mapping`.
+
+## Variables de entorno IA (Azure OpenAI)
+- `AZURE_OPENAI_ENDPOINT` (ej. `https://criteria-nlu.openai.azure.com`)
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_OPENAI_API_VERSION` (ej. `2024-06-01`)
+- `AZURE_OPENAI_DEPLOYMENT_GPT` (ej. `nlu-41mini`)
+
+## Datos mínimos en BD para probar IA
+- `org_profile`: 1 fila con industria, contexto y tone_notes.
+- `persona_config`: 1 fila activa con role_description, tone_attributes, rules, max_reply_length o system_prompt_template.
+- `services_catalog`: códigos/nombres de servicio usados en tickets (ej. 307 → “Otros”).
+- `settings`: claves JSON `max_history_messages_in_prompt`, `max_internal_notes_in_prompt`, `temperature`, `max_tokens`, `azure_openai_deployment`, `azure_openai_api_version`.
+- `technician_mapping`: user_upn ↔ technician_id_sdp para el bearer que uses en las pruebas.
