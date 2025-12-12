@@ -160,7 +160,11 @@ async def _get_service_entry(db: AsyncSession, service_code: Optional[str]) -> O
     return result.scalar_one_or_none()
 
 
-@router.get("/tickets/{ticket_id}", response_model=TicketDetail)
+@router.get(
+    "/tickets/{ticket_id}",
+    response_model=TicketDetail,
+    response_model_exclude_none=True,
+)
 async def ticket_detail(
     ticket_id: str,
     current_user: CurrentUser,

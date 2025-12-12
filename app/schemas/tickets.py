@@ -56,6 +56,11 @@ class TicketDetail(BaseModel):
     is_silent: Optional[bool] = None
     experience_review_requested: bool = False
 
+    model_config = {
+        "exclude_none": True,
+        "extra": "ignore",
+    }
+
 
 class TicketHistoryEvent(BaseModel):
     event_id: Optional[int] = None
