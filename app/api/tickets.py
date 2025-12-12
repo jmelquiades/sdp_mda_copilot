@@ -104,7 +104,6 @@ async def list_tickets(
         service_code = t.get("service_code")
         if service_code is not None:
             service_code = str(service_code)
-        service_name = t.get("service_name")
         # El gateway expone la última comunicación como last_user_contact_at (alias de last_public_reply_time).
         last_contact_dt = _parse_datetime(t.get("last_user_contact_at") or t.get("last_public_reply_time"))
         hours_since = None
@@ -139,7 +138,6 @@ async def list_tickets(
                 status=t.get("status"),
                 priority=t.get("priority"),
                 service_code=service_code,
-                service_name=service_name,
                 last_user_contact_at=last_contact_dt,
                 hours_since_last_user_contact=hours_since,
                 communication_sla_hours=comm_sla,
@@ -179,7 +177,6 @@ async def ticket_detail(
     service_code = detail.get("service_code")
     if service_code is not None:
         service_code = str(service_code)
-    service_name = detail.get("service_name")
     priority_name = _extract_name(detail.get("priority"))
     status_name = _extract_name(detail.get("status"))
     display_id = str(detail.get("display_id") or detail.get("id"))
@@ -238,7 +235,6 @@ async def ticket_detail(
         created_time=_parse_datetime(detail.get("created_time")),
         sla=detail.get("sla"),
         service_code=service_code,
-        service_name=service_name,
         service=service_out,
         last_user_contact_at=last_contact_dt,
         hours_since_last_user_contact=hours_since,

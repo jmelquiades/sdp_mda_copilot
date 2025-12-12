@@ -13,7 +13,6 @@ class TicketItem(BaseModel):
     status: Optional[str] = None
     priority: Optional[str] = None
     service_code: Optional[str] = None
-    service_name: Optional[str] = None
     last_user_contact_at: Optional[datetime] = None
     hours_since_last_user_contact: Optional[float] = None
     communication_sla_hours: float
@@ -49,7 +48,6 @@ class TicketDetail(BaseModel):
     created_time: Optional[datetime] = None
     sla: Optional[dict] = None
     service_code: Optional[str] = None
-    service_name: Optional[str] = None
     service: Optional[ServiceCatalogItem] = None
     last_user_contact_at: Optional[datetime] = None
     hours_since_last_user_contact: Optional[float] = None
