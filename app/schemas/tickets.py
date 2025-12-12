@@ -12,6 +12,7 @@ class TicketItem(BaseModel):
     subject: Optional[str] = None
     status: Optional[str] = None
     priority: Optional[str] = None
+    service_code: Optional[str] = None
     last_user_contact_at: Optional[datetime] = None
     hours_since_last_user_contact: Optional[float] = None
     communication_sla_hours: float
