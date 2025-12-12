@@ -10,6 +10,7 @@ class TicketItem(BaseModel):
     id: str
     display_id: Optional[str] = None
     subject: Optional[str] = None
+    requester: Optional[dict] = None
     status: Optional[str] = None
     priority: Optional[str] = None
     service_code: Optional[str] = None

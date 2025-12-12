@@ -135,6 +135,7 @@ async def list_tickets(
                 id=str(t.get("id")),
                 display_id=str(t.get("display_id") or t.get("id")),
                 subject=t.get("subject"),
+                requester=t.get("requester"),
                 status=t.get("status"),
                 priority=t.get("priority"),
                 service_code=service_code,
