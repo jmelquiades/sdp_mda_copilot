@@ -175,6 +175,17 @@ async def ticket_detail(
     if not detail:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ticket_not_found")
 
+    # Construir requester a partir de lo que devuelva el gateway.
+    requester = detail.get("requester")
+    if not requester:
+        requester_name = detail.get("requester_name")
+        requester_email = detail.get("requester_email")
+        if requester_name or requester_email:
+            requester = {
+                "name": requester_name,
+                "email": requester_email,
+            }
+
     service_code = detail.get("service_code")
     if service_code is not None:
         service_code = str(service_code)
@@ -227,7 +238,7 @@ async def ticket_detail(
         display_id=display_id,
         subject=detail.get("subject"),
         description=detail.get("description"),
-        requester=detail.get("requester"),
+        requester=requester or detail.get("requester"),
         status=status_name,
         priority=priority_name,
         site=site_name,
