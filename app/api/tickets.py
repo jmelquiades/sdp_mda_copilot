@@ -74,6 +74,16 @@ def _select_comm_sla(service: Optional[ServiceCatalog], priority: Optional[str],
     return float(value) if value is not None else default_hours
 
 
+def _extract_name(obj: Optional[dict | str]) -> Optional[str]:
+    if obj is None:
+        return None
+    if isinstance(obj, str):
+        return obj
+    if isinstance(obj, dict):
+        return obj.get("name") or obj.get("display_value") or obj.get("display_name") or obj.get("value")
+    return None
+
+
 @router.get("/tickets", response_model=TicketsResponse)
 async def list_tickets(
     current_user: CurrentUser,
@@ -94,6 +104,7 @@ async def list_tickets(
         service_code = t.get("service_code")
         if service_code is not None:
             service_code = str(service_code)
+        service_name = t.get("service_name")
         # El gateway expone la última comunicación como last_user_contact_at (alias de last_public_reply_time).
         last_contact_dt = _parse_datetime(t.get("last_user_contact_at") or t.get("last_public_reply_time"))
         hours_since = None
@@ -128,6 +139,7 @@ async def list_tickets(
                 status=t.get("status"),
                 priority=t.get("priority"),
                 service_code=service_code,
+                service_name=service_name,
                 last_user_contact_at=last_contact_dt,
                 hours_since_last_user_contact=hours_since,
                 communication_sla_hours=comm_sla,
@@ -165,6 +177,12 @@ async def ticket_detail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ticket_not_found")
 
     service_code = detail.get("service_code")
+    if service_code is not None:
+        service_code = str(service_code)
+    service_name = detail.get("service_name")
+    priority_name = _extract_name(detail.get("priority"))
+    status_name = _extract_name(detail.get("status"))
+    display_id = str(detail.get("display_id") or detail.get("id"))
     service_entry = await _get_service_entry(db, service_code)
     service_out = None
     if service_entry:
@@ -178,12 +196,15 @@ async def ticket_detail(
             comm_sla_p4_hours=float(service_entry.comm_sla_p4_hours) if service_entry.comm_sla_p4_hours else None,
         )
 
+    site_name = _extract_name(detail.get("site"))
+    group_name = _extract_name(detail.get("group"))
+
     last_contact_dt = _parse_datetime(
         detail.get("last_user_contact_at") or detail.get("last_public_reply_time")
     )
     now = datetime.now(tz=timezone.utc)
     hours_since = (now - last_contact_dt).total_seconds() / 3600 if last_contact_dt else None
-    comm_sla = _select_comm_sla(service_entry, detail.get("priority"), settings.comm_sla_default_hours)
+    comm_sla = _select_comm_sla(service_entry, priority_name, settings.comm_sla_default_hours)
     is_silent = bool(hours_since is not None and comm_sla is not None and hours_since >= comm_sla)
 
     # Upsert flags
@@ -192,10 +213,10 @@ async def ticket_detail(
     if not flags:
         flags = TicketFlags(ticket_id=str(detail.get("id")))
         db.add(flags)
-    flags.display_id = detail.get("display_id")
+    flags.display_id = display_id
     flags.service_code = service_code
-    flags.status = detail.get("status")
-    flags.priority = detail.get("priority")
+    flags.status = status_name
+    flags.priority = priority_name
     flags.last_user_contact_at = last_contact_dt
     flags.hours_since_last_user_contact = hours_since
     flags.communication_sla_hours = comm_sla
@@ -205,18 +226,19 @@ async def ticket_detail(
 
     return TicketDetail(
         id=str(detail.get("id")),
-        display_id=str(detail.get("display_id") or detail.get("id")),
+        display_id=display_id,
         subject=detail.get("subject"),
         description=detail.get("description"),
         requester=detail.get("requester"),
-        status=detail.get("status"),
-        priority=detail.get("priority"),
-        site=detail.get("site"),
-        group=detail.get("group"),
+        status=status_name,
+        priority=priority_name,
+        site=site_name,
+        group=group_name,
         technician_id=detail.get("technician_id"),
         created_time=_parse_datetime(detail.get("created_time")),
         sla=detail.get("sla"),
         service_code=service_code,
+        service_name=service_name,
         service=service_out,
         last_user_contact_at=last_contact_dt,
         hours_since_last_user_contact=hours_since,

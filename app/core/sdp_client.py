@@ -75,6 +75,9 @@ class SdpClient:
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"gateway_request_failed (status={resp.status_code})",
             )
+        # Gateway puede devolver {"ok":true,"ticket":{...}} o el ticket directo.
+        if "ticket" in data and isinstance(data.get("ticket"), dict):
+            return data["ticket"]
         return data
 
     async def get_request_history(self, ticket_id: str) -> List[Dict[str, Any]]:
@@ -90,9 +93,14 @@ class SdpClient:
         except Exception as exc:  # pragma: no cover - defensive
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="gateway_invalid_json") from exc
 
-        if resp.status_code != 200 or not isinstance(data, list):
+        if resp.status_code != 200:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"gateway_request_failed (status={resp.status_code})",
             )
-        return data
+        # Gateway puede devolver {"ok": true, "events": [...]} o la lista directa.
+        if isinstance(data, dict) and "events" in data:
+            events = data.get("events") or []
+        else:
+            events = data if isinstance(data, list) else []
+        return events
