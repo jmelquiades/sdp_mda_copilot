@@ -19,7 +19,12 @@ from app.models.persona_config import PersonaConfig
 from app.models.services_catalog import ServiceCatalog
 from app.models.settings import Setting
 from app.models.technician_mapping import TechnicianMapping
-from app.schemas.ia import GenerateReplyRequest, GenerateReplyResponse
+from app.schemas.ia import (
+    GenerateReplyRequest,
+    GenerateReplyResponse,
+    InterpretConversationRequest,
+    InterpretConversationResponse,
+)
 
 router = APIRouter(prefix="/api/ia", tags=["ia"])
 
@@ -172,6 +177,23 @@ def _build_user_prompt(
     )
 
 
+def _build_interpret_prompt(
+    detail: dict,
+    history: List[dict],
+    settings_map: Dict[str, str],
+) -> str:
+    max_hist = int(settings_map.get("max_history_messages_in_prompt", 10))
+    history_txt = _format_history(history, max_hist)
+    return (
+        "Analiza el historial del ticket y sugiere enfoque/acción próxima.\n"
+        f"Ticket: {detail.get('id')} / {detail.get('display_id')}\n"
+        f"Asunto: {detail.get('subject')}\n"
+        f"Estado: {detail.get('status')} | Prioridad: {detail.get('priority')}\n"
+        f"Historial reciente:\n{history_txt}\n"
+        "Devuelve solo una sugerencia breve (no redactes el mensaje final)."
+    )
+
+
 @router.post("/generate_reply", response_model=GenerateReplyResponse)
 async def generate_reply(
     req: GenerateReplyRequest,
@@ -222,6 +244,59 @@ async def generate_reply(
         log.latency_ms = int((datetime.now(tz=timezone.utc) - started).total_seconds() * 1000)
         await db.commit()
         return GenerateReplyResponse(suggested_message=reply)
+    except OpenAIError as exc:
+        log.success = False
+        log.error_message = str(exc)
+        log.latency_ms = int((datetime.now(tz=timezone.utc) - started).total_seconds() * 1000)
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="ia_provider_error") from exc
+
+
+@router.post("/interpret_conversation", response_model=InterpretConversationResponse)
+async def interpret_conversation(
+    req: InterpretConversationRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    sdp_client: SdpClient = Depends(get_sdp_client),
+    ia_client: IAClient = Depends(get_ia_client),
+) -> InterpretConversationResponse:
+    """Sugiere enfoque para la siguiente respuesta, basado en historial."""
+    user_upn = current_user
+    await _resolve_technician_id(db, user_upn)
+
+    detail = await sdp_client.get_request_detail(req.ticket_id)
+    history = await sdp_client.get_request_history(req.ticket_id)
+    settings_map = await _load_settings(db)
+    persona = await _load_persona(db)
+    org = await _load_org_profile(db)
+
+    temperature = float(settings_map.get("temperature", 0.3))
+    max_tokens = int(settings_map.get("max_tokens", 400))
+    system_prompt = _build_system_prompt(persona, org)
+    user_prompt = _build_interpret_prompt(detail, history, settings_map)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    started = datetime.now(tz=timezone.utc)
+    log = IALog(
+        user_upn=user_upn,
+        ticket_id=req.ticket_id,
+        operation="interpret_conversation",
+        message_type="interpretacion",
+        model=settings.azure_openai_deployment_gpt,
+    )
+    db.add(log)
+    try:
+        suggestion = await ia_client.interpret_conversation(messages, temperature=temperature, max_tokens=max_tokens)
+        log.success = True
+        log.response_chars = len(suggestion)
+        log.prompt_chars = sum(len(m["content"]) for m in messages)
+        log.latency_ms = int((datetime.now(tz=timezone.utc) - started).total_seconds() * 1000)
+        await db.commit()
+        return InterpretConversationResponse(suggestion=suggestion)
     except OpenAIError as exc:
         log.success = False
         log.error_message = str(exc)

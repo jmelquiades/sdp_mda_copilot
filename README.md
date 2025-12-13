@@ -34,6 +34,7 @@ alembic upgrade head
 - `GET /api/tickets/{id}` → detalle del ticket (servicio, SLA, requester, created_time, último contacto, flags).
 - `GET /api/tickets/{id}/history` → eventos cronológicos (notas y conversaciones) con autor, visibilidad y timestamp ISO.
 - `POST /api/ia/generate_reply` → (Hito 6) genera un mensaje sugerido con IA. Requiere tablas pobladas: `org_profile`, `persona_config`, `services_catalog`, `settings` y mapeo en `technician_mapping`.
+- `POST /api/ia/interpret_conversation` → (Hito 6) sugiere enfoque a partir del historial reciente.
 
 ## Variables de entorno IA (Azure OpenAI)
 - `AZURE_OPENAI_ENDPOINT` (ej. `https://criteria-nlu.openai.azure.com`)

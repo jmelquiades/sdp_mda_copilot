@@ -13,3 +13,11 @@ class GenerateReplyRequest(BaseModel):
 
 class GenerateReplyResponse(BaseModel):
     suggested_message: str
+
+
+class InterpretConversationRequest(BaseModel):
+    ticket_id: str
+
+
+class InterpretConversationResponse(BaseModel):
+    suggestion: str

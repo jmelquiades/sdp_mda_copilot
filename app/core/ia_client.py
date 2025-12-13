@@ -40,3 +40,23 @@ class IAClient:
             raise
         content = resp.choices[0].message.content if resp.choices else ""
         return content or ""
+
+    async def interpret_conversation(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        temperature: float = 0.3,
+        max_tokens: int = 400,
+    ) -> str:
+        """Interpreta historial/conversación y devuelve sugerencia de enfoque."""
+        try:
+            resp = await self.client.chat.completions.create(
+                model=self.deployment,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except OpenAIError as exc:
+            raise
+        content = resp.choices[0].message.content if resp.choices else ""
+        return content or ""
