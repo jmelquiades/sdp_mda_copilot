@@ -11,8 +11,11 @@ from typing import Iterable, Optional
 
 import httpx
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models.settings import Setting
 
 
 class EmailSendError(Exception):
@@ -120,6 +123,49 @@ def get_email_client_from_settings() -> EmailClient:
         oauth_tenant_id=settings.smtp_oauth_tenant_id or None,
         oauth_client_id=settings.smtp_oauth_client_id or None,
         oauth_client_secret=settings.smtp_oauth_client_secret or None,
+    )
+    if not cfg.username:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="email_not_configured")
+    return EmailClient(cfg)
+
+
+SMTP_SETTING_KEYS = {
+    "smtp_server",
+    "smtp_port",
+    "smtp_username",
+    "smtp_password",
+    "smtp_sender",
+    "smtp_bcc",
+    "smtp_oauth_tenant_id",
+    "smtp_oauth_client_id",
+    "smtp_oauth_client_secret",
+}
+
+
+async def get_email_client_from_db(db: AsyncSession) -> EmailClient:
+    """
+    Build EmailClient using overrides stored in copilot.settings table.
+    Falls back to environment values if a key is missing.
+    """
+    result = await db.execute(select(Setting).where(Setting.key.in_(SMTP_SETTING_KEYS)))
+    rows = result.scalars().all()
+    values = {row.key: row.value for row in rows}
+
+    def val(key: str, default):
+        v = values.get(key, default)
+        # values in table are JSONB; if stored as primitives, return directly
+        return v
+
+    cfg = EmailConfig(
+        server=str(val("smtp_server", settings.smtp_server)),
+        port=int(val("smtp_port", settings.smtp_port)),
+        username=str(val("smtp_username", settings.smtp_username or "")),
+        password=str(val("smtp_password", settings.smtp_password or "")),
+        sender=str(val("smtp_sender", settings.smtp_sender or settings.smtp_username or "")),
+        bcc=str(val("smtp_bcc", settings.smtp_bcc or "")) or None,
+        oauth_tenant_id=str(val("smtp_oauth_tenant_id", settings.smtp_oauth_tenant_id or "")) or None,
+        oauth_client_id=str(val("smtp_oauth_client_id", settings.smtp_oauth_client_id or "")) or None,
+        oauth_client_secret=str(val("smtp_oauth_client_secret", settings.smtp_oauth_client_secret or "")) or None,
     )
     if not cfg.username:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="email_not_configured")
