@@ -1,4 +1,4 @@
-"""SMTP client with optional OAuth2 (Office 365) for sending emails."""
+"""Clientes de correo: preferentemente Graph; fallback SMTP si se configura."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import smtplib
 from dataclasses import dataclass
 from email.message import EmailMessage
 from time import time
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Protocol
 
 import httpx
 from fastapi import HTTPException, status
@@ -20,6 +20,14 @@ from app.models.settings import Setting
 
 class EmailSendError(Exception):
     """Raised when email delivery fails."""
+
+
+class MailSender(Protocol):
+    def send(self, to: Iterable[str], subject: str, plain_body: str, html_body: Optional[str] = None) -> None:
+        ...
+
+
+# ---------- SMTP ----------
 
 
 @dataclass
@@ -40,7 +48,7 @@ class EmailConfig:
 
 
 class EmailClient:
-    """SMTP client that supports basic auth or OAuth2 XOAUTH2 (like controller)."""
+    """SMTP client with basic auth or OAuth2 XOAUTH2."""
 
     def __init__(self, config: EmailConfig):
         self.cfg = config
@@ -111,6 +119,83 @@ class EmailClient:
         smtp.docmd("AUTH", "XOAUTH2 " + auth_string)
 
 
+# ---------- Graph ----------
+
+
+@dataclass
+class GraphConfig:
+    tenant_id: str
+    client_id: str
+    client_secret: str
+    sender: str  # UPN del buzón emisor
+
+    @property
+    def is_valid(self) -> bool:
+        return all([self.tenant_id, self.client_id, self.client_secret, self.sender])
+
+
+class GraphMailClient:
+    """Envío de correo vía Microsoft Graph /sendMail con client_credentials."""
+
+    def __init__(self, config: GraphConfig):
+        self.cfg = config
+        self._token: Optional[str] = None
+        self._token_expires_at: Optional[float] = None
+
+    def send(self, to: Iterable[str], subject: str, plain_body: str, html_body: Optional[str] = None) -> None:
+        token = self._ensure_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        body_content = {
+            "contentType": "HTML" if html_body else "Text",
+            "content": html_body or plain_body,
+        }
+        message = {
+            "subject": subject,
+            "body": body_content,
+            "toRecipients": [{"emailAddress": {"address": addr}} for addr in to if addr],
+        }
+        payload = {"message": message, "saveToSentItems": "true"}
+        url = f"https://graph.microsoft.com/v1.0/users/{self.cfg.sender}/sendMail"
+        try:
+            resp = httpx.post(url, headers=headers, json=payload, timeout=15)
+            resp.raise_for_status()
+        except Exception as exc:  # pragma: no cover - externo
+            raise EmailSendError(f"graph_send_error: {exc}") from exc
+
+    def _ensure_token(self) -> str:
+        if self._token and self._token_expires_at and time() < self._token_expires_at - 60:
+            return self._token
+        token, expires_in = self._fetch_token()
+        self._token = token
+        self._token_expires_at = time() + expires_in
+        return token
+
+    def _fetch_token(self) -> tuple[str, int]:
+        data = {
+            "client_id": self.cfg.client_id,
+            "client_secret": self.cfg.client_secret,
+            "scope": "https://graph.microsoft.com/.default",
+            "grant_type": "client_credentials",
+        }
+        resp = httpx.post(
+            f"https://login.microsoftonline.com/{self.cfg.tenant_id}/oauth2/v2.0/token",
+            data=data,
+            timeout=10,
+        )
+        try:
+            resp.raise_for_status()
+        except Exception as exc:
+            raise EmailSendError(f"graph_token_error: {exc}") from exc
+        payload = resp.json()
+        return payload["access_token"], int(payload.get("expires_in", 3600))
+
+
+# ---------- helpers ----------
+
+
 def get_email_client_from_settings() -> EmailClient:
     """Factory to build EmailClient from environment settings."""
     cfg = EmailConfig(
@@ -139,6 +224,11 @@ SMTP_SETTING_KEYS = {
     "smtp_oauth_tenant_id",
     "smtp_oauth_client_id",
     "smtp_oauth_client_secret",
+    # Graph
+    "graph_tenant_id",
+    "graph_client_id",
+    "graph_client_secret",
+    "graph_sender",
 }
 
 
@@ -153,7 +243,6 @@ async def get_email_client_from_db(db: AsyncSession) -> EmailClient:
 
     def val(key: str, default):
         v = values.get(key, default)
-        # values in table are JSONB; if stored as primitives, return directly
         return v
 
     cfg = EmailConfig(
@@ -170,3 +259,41 @@ async def get_email_client_from_db(db: AsyncSession) -> EmailClient:
     if not cfg.username:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="email_not_configured")
     return EmailClient(cfg)
+
+
+async def get_mail_sender_from_db(db: AsyncSession) -> MailSender:
+    """
+    Devuelve GraphMailClient si hay credenciales completas en settings,
+    de lo contrario cae a SMTP (EmailClient).
+    """
+    result = await db.execute(select(Setting).where(Setting.key.in_(SMTP_SETTING_KEYS)))
+    rows = result.scalars().all()
+    values = {row.key: row.value for row in rows}
+
+    def val(key: str, default):
+        return values.get(key, default)
+
+    graph_cfg = GraphConfig(
+        tenant_id=str(val("graph_tenant_id", settings.graph_tenant_id or "")),
+        client_id=str(val("graph_client_id", settings.graph_client_id or "")),
+        client_secret=str(val("graph_client_secret", settings.graph_client_secret or "")),
+        sender=str(val("graph_sender", settings.graph_sender or "")),
+    )
+    if graph_cfg.is_valid:
+        return GraphMailClient(graph_cfg)
+
+    # Fallback SMTP
+    smtp_cfg = EmailConfig(
+        server=str(val("smtp_server", settings.smtp_server)),
+        port=int(val("smtp_port", settings.smtp_port)),
+        username=str(val("smtp_username", settings.smtp_username or "")),
+        password=str(val("smtp_password", settings.smtp_password or "")),
+        sender=str(val("smtp_sender", settings.smtp_sender or settings.smtp_username or "")),
+        bcc=str(val("smtp_bcc", settings.smtp_bcc or "")) or None,
+        oauth_tenant_id=str(val("smtp_oauth_tenant_id", settings.smtp_oauth_tenant_id or "")) or None,
+        oauth_client_id=str(val("smtp_oauth_client_id", settings.smtp_oauth_client_id or "")) or None,
+        oauth_client_secret=str(val("smtp_oauth_client_secret", settings.smtp_oauth_client_secret or "")) or None,
+    )
+    if not smtp_cfg.username:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="email_not_configured")
+    return EmailClient(smtp_cfg)

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import CurrentUser
 from app.core.config import settings
-from app.core.email_client import EmailSendError, get_email_client_from_db
+from app.core.email_client import EmailSendError, get_mail_sender_from_db
 from app.core.sdp_client import SdpClient
 from app.db.session import get_db
 from app.models.services_catalog import ServiceCatalog
@@ -326,7 +326,7 @@ async def send_reply(
     subject = f"[SDP #{display_id}] {detail.get('subject') or ''}".strip()
     plain_body = payload.message
 
-    email_client = await get_email_client_from_db(db)
+    email_client = await get_mail_sender_from_db(db)
     try:
         email_client.send(to=[requester_email], subject=subject, plain_body=plain_body)
     except EmailSendError as exc:

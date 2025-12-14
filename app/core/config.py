@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     azure_openai_api_key: str = Field(default="", alias="AZURE_OPENAI_API_KEY")
     azure_openai_api_version: str = Field(default="", alias="AZURE_OPENAI_API_VERSION")
     azure_openai_deployment_gpt: str = Field(default="", alias="AZURE_OPENAI_DEPLOYMENT_GPT")
+    # Microsoft Graph (correo sin SMTP básico)
+    graph_tenant_id: str = Field(default="", alias="GRAPH_TENANT_ID")
+    graph_client_id: str = Field(default="", alias="GRAPH_CLIENT_ID")
+    graph_client_secret: str = Field(default="", alias="GRAPH_CLIENT_SECRET")
+    graph_sender: str = Field(default="", alias="GRAPH_SENDER")
 
     def sanitized_database_url(self) -> str:
         """Return DB URL without unsupported sslmode query parameter."""
