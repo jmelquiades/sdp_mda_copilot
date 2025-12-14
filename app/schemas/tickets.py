@@ -76,3 +76,12 @@ class TicketHistoryEvent(BaseModel):
 
 class TicketHistoryResponse(BaseModel):
     events: List[TicketHistoryEvent] = Field(default_factory=list)
+
+
+class SendReplyRequest(BaseModel):
+    message: str
+    change_status_to: Optional[str] = None
+
+
+class SendReplyResponse(BaseModel):
+    ok: bool = True

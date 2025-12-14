@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import CurrentUser
 from app.core.config import settings
+from app.core.email_client import EmailSendError, get_email_client_from_db
 from app.core.sdp_client import SdpClient
 from app.db.session import get_db
 from app.models.services_catalog import ServiceCatalog
@@ -21,6 +22,8 @@ from app.schemas.tickets import (
     TicketHistoryResponse,
     TicketItem,
     TicketsResponse,
+    SendReplyRequest,
+    SendReplyResponse,
 )
 
 router = APIRouter(prefix="/api", tags=["tickets"])
@@ -289,3 +292,63 @@ async def ticket_history(
         for e in events_sorted
     ]
     return TicketHistoryResponse(events=parsed_events)
+
+
+@router.post("/tickets/{ticket_id}/send_reply", response_model=SendReplyResponse)
+async def send_reply(
+    ticket_id: str,
+    payload: SendReplyRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    sdp_client: SdpClient = Depends(get_sdp_client),
+):
+    """
+    Envía un correo al solicitante (To) y Bcc al buzón SDP configurado.
+    Actualiza flags locales de comunicación.
+    """
+    # Valida que el usuario esté mapeado
+    await _resolve_technician_id(db, current_user)
+
+    detail = await sdp_client.get_request_detail(ticket_id)
+    if not detail:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ticket_not_found")
+
+    requester = detail.get("requester") or {}
+    requester_email = (
+        requester.get("email")
+        or requester.get("email_id")
+        or detail.get("requester_email")
+    )
+    if not requester_email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="requester_email_missing")
+
+    display_id = str(detail.get("display_id") or detail.get("id") or ticket_id)
+    subject = f"[SDP #{display_id}] {detail.get('subject') or ''}".strip()
+    plain_body = payload.message
+
+    email_client = await get_email_client_from_db(db)
+    try:
+        email_client.send(to=[requester_email], subject=subject, plain_body=plain_body)
+    except EmailSendError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"email_failed: {exc}") from exc
+
+    # Actualizar flags locales
+    now_utc = datetime.now(tz=timezone.utc)
+    result = await db.execute(select(TicketFlags).where(TicketFlags.ticket_id == str(detail.get("id") or ticket_id)))
+    flags = result.scalar_one_or_none()
+    if not flags:
+        flags = TicketFlags(ticket_id=str(detail.get("id") or ticket_id))
+        db.add(flags)
+    flags.last_user_contact_at = now_utc
+    flags.hours_since_last_user_contact = 0.0
+    flags.is_silent = False
+    flags.display_id = display_id
+    if detail.get("priority"):
+        flags.priority = _extract_name(detail.get("priority"))
+    if detail.get("status"):
+        flags.status = _extract_name(detail.get("status"))
+    if detail.get("service_code"):
+        flags.service_code = str(detail.get("service_code"))
+    await db.commit()
+
+    return SendReplyResponse(ok=True)
