@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     graph_client_id: str = Field(default="", alias="GRAPH_CLIENT_ID")
     graph_client_secret: str = Field(default="", alias="GRAPH_CLIENT_SECRET")
     graph_sender: str = Field(default="", alias="GRAPH_SENDER")
+    # Experiencia / reviews
+    review_token_secret: str = Field(default="", alias="REVIEW_TOKEN_SECRET")
+    experience_review_token_ttl_hours: int = Field(default=24, alias="EXPERIENCE_REVIEW_TOKEN_TTL_HOURS")
 
     def sanitized_database_url(self) -> str:
         """Return DB URL without unsupported sslmode query parameter."""

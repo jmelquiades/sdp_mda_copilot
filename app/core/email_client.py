@@ -161,7 +161,9 @@ class GraphMailClient:
         url = f"https://graph.microsoft.com/v1.0/users/{self.cfg.sender}/sendMail"
         try:
             resp = httpx.post(url, headers=headers, json=payload, timeout=15)
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                # devolver detalle para entender 403/401
+                raise EmailSendError(f"graph_send_error {resp.status_code}: {resp.text}")
         except Exception as exc:  # pragma: no cover - externo
             raise EmailSendError(f"graph_send_error: {exc}") from exc
 
