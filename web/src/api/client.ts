@@ -100,7 +100,8 @@ export async function generateIaReply(params: {
   draft: string;
   close_status?: string;
 }): Promise<IaSuggestionResponse> {
-  const { data } = await client.post<IaSuggestionResponse>(`/api/tickets/${params.ticketId}/ia`, {
+  const { data } = await client.post<IaSuggestionResponse>("/api/ia/generate_reply", {
+    ticket_id: params.ticketId,
     message_type: params.messageType,
     draft: params.draft,
     close_status: params.close_status

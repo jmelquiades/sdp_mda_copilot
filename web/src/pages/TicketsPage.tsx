@@ -95,9 +95,22 @@ export default function TicketsPage() {
         ? "badge success"
         : status?.includes("pend") || status?.includes("hold")
         ? "badge warning"
-        : "badge info";
+      : "badge info";
     return <span className={className}>{current.status}</span>;
   }, [current]);
+
+  const toPlainText = (value?: string) => {
+    if (!value) return "";
+    // Simplify HTML coming from SDP to readable plain text
+    if (value.includes("<")) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(value, "text/html");
+      return doc.body.textContent || value;
+    }
+    return value;
+  };
+
+  const descriptionText = useMemo(() => toPlainText(current?.description), [current]);
 
   return (
     <div className="page layout">
@@ -166,7 +179,9 @@ export default function TicketsPage() {
                 </div>
                 <div className="description">
                   <span className="muted small">Descripción</span>
-                  <p>{current.description || "Sin descripción"}</p>
+                  <pre className="description-content">
+                    {descriptionText || "Sin descripción"}
+                  </pre>
                 </div>
               </div>
 
@@ -206,7 +221,7 @@ export default function TicketsPage() {
                     </label>
                   )}
                   <label className="stack full">
-                    <span>Borrador técnico</span>
+                    <span>Intención de mensaje</span>
                     <textarea
                       rows={3}
                       placeholder="Notas para guiar a la IA"
@@ -263,18 +278,18 @@ export default function TicketsPage() {
                   {historyQuery.isLoading && <div className="muted">Cargando...</div>}
                   {historyQuery.data?.map((ev) => (
                     <div key={ev.event_id} className="timeline-item">
-                      <div className="timeline-meta">
-                        <span className="muted small">{ev.timestamp}</span>
-                        <span className="badge outline">{ev.visibility || ev.type}</span>
-                      </div>
-                      <div className="timeline-body">
-                        <strong>{ev.author_name || "N/D"}</strong>
-                        <p>{ev.text}</p>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="timeline-meta">
+                    <span className="muted small">{ev.timestamp}</span>
+                    <span className="badge outline">{ev.visibility || ev.type}</span>
+                  </div>
+                  <div className="timeline-body">
+                    <strong>{ev.author_name || "N/D"}</strong>
+                    <p className="timeline-text">{toPlainText(ev.text)}</p>
+                  </div>
                 </div>
-              </div>
+              ))}
+            </div>
+          </div>
             </div>
           ) : (
             <div className="muted">Selecciona un ticket para ver el detalle.</div>
